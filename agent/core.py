@@ -1,13 +1,15 @@
 # agent/core.py
-
 import os
 import json
+import logging
 from dotenv import load_dotenv
 from openai import OpenAI
-import logging
 
 # 🌟 Import our physical audio processing tool
 from tools.separator import separate_audio
+
+# --- New Tweak: Suppress noisy httpx network logs from the OpenAI SDK ---
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # 1. Securely load environment variables
 load_dotenv()
@@ -17,9 +19,6 @@ client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com"
 )
-
-# additional logging configuration to reduce noise from the httpx library used by OpenAI SDK
-logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # 3. Define the Tool Schema
 SEPARATE_TOOL_SCHEMA = {
@@ -45,10 +44,10 @@ AVAILABLE_TOOLS = {
     "separate_audio_stems": separate_audio
 }
 
-def run_agent_workflow(user_prompt: str):
+def run_agent_workflow(user_prompt: str) -> str:
     """
-    The complete Agent execution loop: 
-    Receive Prompt -> LLM Thinks -> Execute Python Tool -> LLM Summarizes
+    The complete Agent execution loop.
+    Now it RETURNS the final string response so a Web UI can display it.
     """
     print(f"\n[User] {user_prompt}\n")
     print("-" * 50)
@@ -57,7 +56,7 @@ def run_agent_workflow(user_prompt: str):
     messages = [
         {
             "role": "system", 
-            "content": "You are Music-Agent, a professional AI audio processing assistant. You have access to audio processing tools. You MUST use the tools if the user asks for audio separation. Do not apologize, just call the tool. After the tool returns a result, summarize the output file paths for the user clearly and concisely."
+            "content": "You are Music-Agent, a professional AI audio processing assistant. You have access to audio processing tools. You MUST use the tools if the user asks for audio separation. Do not apologize, just call the tool. After the tool returns a result, summarize the output file paths for the user clearly and concisely. Format your response with Markdown."
         },
         {"role": "user", "content": user_prompt}
     ]
@@ -117,17 +116,24 @@ def run_agent_workflow(user_prompt: str):
             model="deepseek-chat",
             messages=messages
         )
+        final_answer = second_response.choices[0].message.content
+        
+        # We still print it for the terminal, but crucially, we RETURN it for the UI
         print("\n✨ [Final Answer]")
-        print(second_response.choices[0].message.content)
+        print(final_answer)
+        return final_answer
 
     else:
         # If no tool was needed (e.g., general chat)
+        final_answer = response_message.content
         print("\n✨ [Final Answer]")
-        print(response_message.content)
+        print(final_answer)
+        return final_answer
 
 # ==========================================
 # Local Testing Block
 # ==========================================
 if __name__ == "__main__":
-    # Note: We also changed the test prompt to English to keep everything consistent!
-    run_agent_workflow("Please separate the vocals and instruments from the test.mp3 file.")
+    # Test the return functionality
+    result = run_agent_workflow("Please separate the vocals and instruments from the test.mp3 file.")
+    # You can assert or check the result here if needed
