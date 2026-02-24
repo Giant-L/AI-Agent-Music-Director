@@ -1,0 +1,49 @@
+# =========================
+# 1. macOS System Files
+# =========================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# =========================
+# 2. Python Cache & Environments
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# =========================
+# 3. Critical Security & Credential Files (Prevent API Key leakage)
+# =========================
+.env
+config.ini
+secrets.json
+
+# =========================
+# 4. IDE & Editor Configurations
+# =========================
+.vscode/
+.idea/
+*.swp
+
+# =========================
+# 5. Music-Agent Specific Exclusions
+# =========================
+# Ignore all multimedia test files to keep the repository lightweight
+*.mp3
+*.wav
+*.flac
+*.mid
+*.midi
+
+# Ignore temporary workspace directory (generated audio outputs)
+workspace/
+
+# Explicitly ignore local test scripts or temporary inputs
+test.mp3
+test_result.txt
