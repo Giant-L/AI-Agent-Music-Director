@@ -1,19 +1,27 @@
 # agent/core.py
+
 import os
 import json
 from dotenv import load_dotenv
 from openai import OpenAI
+import logging
 
-# 1. Securely load environment variables from the .env file
+# 🌟 Import our physical audio processing tool
+from tools.separator import separate_audio
+
+# 1. Securely load environment variables
 load_dotenv()
 
-# 2. Initialize the LLM client (Using DeepSeek via OpenAI SDK format)
+# 2. Initialize the LLM client (DeepSeek)
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com"
 )
 
-# 3. Core: Define the Tool Schema (Function Signature for the LLM)
+# additional logging configuration to reduce noise from the httpx library used by OpenAI SDK
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# 3. Define the Tool Schema
 SEPARATE_TOOL_SCHEMA = {
     "type": "function",
     "function": {
@@ -32,49 +40,94 @@ SEPARATE_TOOL_SCHEMA = {
     }
 }
 
-def test_llm_intent_parsing(user_prompt: str):
+# 🌟 Tool Registry: Map the string name from LLM to the actual Python function
+AVAILABLE_TOOLS = {
+    "separate_audio_stems": separate_audio
+}
+
+def run_agent_workflow(user_prompt: str):
     """
-    Tests whether the LLM can understand natural language and correctly decide to call the tool.
+    The complete Agent execution loop: 
+    Receive Prompt -> LLM Thinks -> Execute Python Tool -> LLM Summarizes
     """
-    print(f"\n[User] Prompting the LLM: '{user_prompt}'\n")
+    print(f"\n[User] {user_prompt}\n")
+    print("-" * 50)
     
-    # Construct the system and user messages
+    # Initialize message history with System Prompt
     messages = [
-        {"role": "system", "content": "You are Music-Agent, a professional AI audio processing assistant. You have access to audio processing tools. You MUST use the tools if the user asks for audio separation. Do not apologize, just call the tool."},
+        {
+            "role": "system", 
+            "content": "You are Music-Agent, a professional AI audio processing assistant. You have access to audio processing tools. You MUST use the tools if the user asks for audio separation. Do not apologize, just call the tool. After the tool returns a result, summarize the output file paths for the user clearly and concisely."
+        },
         {"role": "user", "content": user_prompt}
     ]
 
-    # Send the request to the LLM, passing the tool schema
+    # [Round 1]: Let the LLM decide if it needs to use a tool
+    print("🧠 [Agent Brain] Analyzing intent and planning...")
     response = client.chat.completions.create(
         model="deepseek-chat",
         messages=messages,
         tools=[SEPARATE_TOOL_SCHEMA],
-        tool_choice="auto"  # Let the model decide whether to use a tool or reply with text
+        tool_choice="auto"
     )
 
-    # Capture the LLM's thought process
     response_message = response.choices[0].message
-    
+    messages.append(response_message) # Add LLM's thought to the context memory
+
     # Check if the LLM decided to call a tool
     if response_message.tool_calls:
-        print("🤖 [Agent Brain] Thought complete: I have decided to call an external tool!")
         for tool_call in response_message.tool_calls:
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
-            print(f"   🎯 Target Tool Name: {function_name}")
-            print(f"   📦 Extracted Parameters: {function_args}")
+            
+            print(f"🛠️  [Execution] LLM triggered tool: '{function_name}'")
+            print(f"   📦 Parsed Arguments: {function_args}")
+            
+            # 1. Retrieve the actual Python function from our registry
+            function_to_call = AVAILABLE_TOOLS.get(function_name)
+            
+            if function_to_call:
+                print("⚙️  [Execution] Running actual Python code (This may take a minute)...")
+                # 2. Execute the tool with the arguments provided by the LLM
+                tool_result = function_to_call(
+                    input_file_path=function_args.get("input_file_path")
+                )
+                print(f"✅ [Execution] Tool finished successfully.")
+                
+                # 3. Package the JSON result and send it back to the LLM
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": function_name,
+                    "content": json.dumps(tool_result)
+                })
+            else:
+                error_msg = f"Tool {function_name} not found in registry."
+                print(f"❌ [Error] {error_msg}")
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": function_name,
+                    "content": json.dumps({"error": error_msg})
+                })
+
+        # [Round 2]: The LLM reads the tool's result and generates a final human-readable answer
+        print("🧠 [Agent Brain] Reading tool output and generating final response...")
+        second_response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=messages
+        )
+        print("\n✨ [Final Answer]")
+        print(second_response.choices[0].message.content)
+
     else:
-        print("🤖 [Agent Brain] Thought complete: No tool needed. Replying directly:")
-        print(f"   💬 {response_message.content}")
+        # If no tool was needed (e.g., general chat)
+        print("\n✨ [Final Answer]")
+        print(response_message.content)
 
 # ==========================================
 # Local Testing Block
 # ==========================================
 if __name__ == "__main__":
-    # Test Case 1: Clear intent to use the tool
-    test_llm_intent_parsing("Help me extract the vocals from the test.mp3 file in the current directory.")
-    
-    print("-" * 50)
-    
-    # Test Case 2: Chit-chat intent (Should NOT trigger the tool)
-    test_llm_intent_parsing("Hello, can you write a poem about spring?")
+    # Note: We also changed the test prompt to English to keep everything consistent!
+    run_agent_workflow("Please separate the vocals and instruments from the test.mp3 file.")
