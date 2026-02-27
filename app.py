@@ -1,8 +1,6 @@
 import streamlit as st
 import os
-import time
 from pathlib import Path
-import json
 
 # 导入我们的终极大脑
 from agent.core import run_agent_workflow
@@ -56,7 +54,6 @@ if prompt := st.chat_input("例如：帮我把这首歌的伴奏提取出来，�
 
     # 触发 Agent 大脑
     with st.chat_message("assistant"):
-        # 极简的状态提示，让用户知道后台在拼命计算
         status_placeholder = st.empty()
         status_placeholder.info("🧠 Agent 正在思考并执行链式任务... (本地推理可能需要几分钟，请耐心等待)")
         
@@ -74,24 +71,49 @@ if prompt := st.chat_input("例如：帮我把这首歌的伴奏提取出来，�
             st.markdown(response_text)
             st.session_state.messages.append({"role": "assistant", "content": response_text})
             
-            # 🌟 极其惊艳的 UI 展示环节 🌟
+            # 🌟 动态 音频控制台 (Audio Console) 🌟
             st.markdown("---")
-            st.subheader("🎧 Agent 生成成果展")
+            st.subheader("🎛️ 智能音频控制台")
             
-            # 1. 尝试寻找分离后的伴奏 (other.wav)
+            # 1. 动态展示所有分离出的独立音轨
             if uploaded_file:
                 stem_name = Path(uploaded_file.name).stem
-                other_path = Path(f"workspace/separated/htdemucs/{stem_name}/other.wav")
-                if other_path.exists():
-                    st.write("**1. 提取的原始伴奏 (other.wav):**")
-                    st.audio(str(other_path))
+                sep_dir = Path(f"workspace/separated/htdemucs/{stem_name}")
+                
+                if sep_dir.exists():
+                    st.markdown("#### 🎧 提取的独立音轨 (Stems)")
+                    col1, col2 = st.columns(2)
+                    
+                    vocals_path = sep_dir / "vocals.wav"
+                    if vocals_path.exists():
+                        with col1:
+                            st.info("🎤 人声 / 清唱 (Vocals)")
+                            st.audio(str(vocals_path))
+                            
+                    other_path = sep_dir / "other.wav"
+                    if other_path.exists():
+                        with col2:
+                            st.success("🎹 纯伴奏 (Accompaniment)")
+                            st.audio(str(other_path))
+                            
+                    drums_path = sep_dir / "drums.wav"
+                    if drums_path.exists():
+                        with col1:
+                            st.warning("🥁 鼓点 (Drums)")
+                            st.audio(str(drums_path))
+                            
+                    bass_path = sep_dir / "bass.wav"
+                    if bass_path.exists():
+                        with col2:
+                            st.error("🎸 贝斯 (Bass)")
+                            st.audio(str(bass_path))
             
-            # 2. 尝试寻找最终生成的全新音乐
-            gen_path = Path("workspace/outputs/generated_music.wav")
-            if gen_path.exists():
-                st.write("**2. 最终生成的全新 Remix:**")
-                st.audio(str(gen_path))
-                st.success("🎉 全链路音乐创作闭环执行成功！")
+            # 2. 意图识别防呆设计：只有大模型明确生成了东西，才展示播放器
+            if "generated_music.wav" in response_text or "generate_music" in response_text or "Remix" in response_text:
+                gen_path = Path("workspace/outputs/generated_music.wav")
+                if gen_path.exists():
+                    st.markdown("#### 🚀 AI 全新生成的 Remix")
+                    st.audio(str(gen_path))
 
         except Exception as e:
             status_placeholder.error(f"❌ Agent 运行崩溃: {str(e)}")

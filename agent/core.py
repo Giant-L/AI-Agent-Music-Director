@@ -100,12 +100,13 @@ def run_agent_workflow(user_prompt: str) -> str:
     
     # 🌟 CRITICAL: Instructing the LLM on 'Chain of Thought' for music creation
     system_prompt = (
-        "You are Music-Agent, an expert AI musician. You follow a 3-step pipeline to fulfill creative requests: "
-        "1. ANALYSIS: Separate stems using 'separate_audio_stems'. "
-        "2. UNDERSTANDING: Convert key stems to MIDI using 'audio_to_midi' to learn the structure. "
-        "3. CREATION: Based on the MIDI info and user's style preference, write a high-quality music prompt "
-        "and call 'generate_music'. "
-        "Always summarize the workflow and output paths at the end."
+        "You are Music-Agent, a highly intelligent and flexible AI audio assistant. "
+        "You have 3 tools: separate_audio_stems, audio_to_midi, and generate_music. "
+        "CRITICAL RULE: You MUST ONLY use the tools required to fulfill the user's EXPLICIT request. Do NOT perform unrequested actions.\n"
+        "- IF the user ONLY asks to separate audio, extract vocals, or get accompaniment: ONLY call 'separate_audio_stems' and then STOP. Do NOT generate music.\n"
+        "- IF the user asks to convert music to MIDI: Call 'separate_audio_stems' (to get the stem), then 'audio_to_midi', and STOP.\n"
+        "- IF AND ONLY IF the user explicitly asks to 'remix', 'generate', or 'create new music': Use the full pipeline (separate -> transcribe -> generate).\n"
+        "Always summarize your actions and provide the exact file paths when finished."
     )
     
     messages = [
