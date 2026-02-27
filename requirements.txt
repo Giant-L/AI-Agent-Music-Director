@@ -1,0 +1,21 @@
+# ==========================================
+# Music-Agent Dependencies
+# ==========================================
+
+# --- Core Agent & UI ---
+openai>=1.0.0              # For LLM Agent reasoning and Function Calling
+python-dotenv              # For secure environment variable loading
+streamlit                  # For interactive Web UI rendering
+
+# --- Physical Audio Tools (Separation & Transcription) ---
+demucs                     # Meta's Hybrid Demucs for stem separation
+basic-pitch                # Spotify's lightweight Audio-to-MIDI model
+
+# --- Local Music Generation (Apple Silicon / MPS Optimized) ---
+# ⚠️ NOTE: The 'generate_music' tool runs completely LOCALLY on this machine.
+# It uses Meta's MusicGen-small (300M) and leverages PyTorch's MPS (Metal Performance Shaders) 
+# for hardware acceleration on Apple M1/M2/M3 chips. Do NOT use cloud API for this module.
+transformers               # Hugging Face library for local model loading
+scipy                      # For saving raw audio tensors to .wav files
+torch>=2.0.0               # Deep learning framework (requires >= 2.0 for stable MPS support)
+torchaudio                 # Audio processing backend for PyTorch
